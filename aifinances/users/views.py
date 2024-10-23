@@ -1,16 +1,16 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from .serializers import UserSerializer, RegisterSerializer, LoginSerializer, ForgetPassword, OTPVerificationSerializer, ResetPasswordSerializer
+from .serializers import UserSerializer, RegisterSerializer, LoginSerializer, ForgetPassword, OTPVerificationSerializer, ResetPasswordSerializer, ResetUserNameAndPassword
 import random
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.cache import cache
-
+from rest_framework.permissions import IsAuthenticated
 
 class RegisterAPI(generics.GenericAPIView):
     serializer_class = RegisterSerializer
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *args,  **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -70,5 +70,28 @@ class ResetPasswordAPI(generics.GenericAPIView):
             return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class ResetUserNameAndPasswordAPI(generics.GenericAPIView):
+   serializer_class = ResetUserNameAndPassword
+   
+   permission_classes = [IsAuthenticated]
 
-class Rese
+   def post(self, request):
+       serializer = self.get_serializer(
+           isinstance = request.user,
+           data = request.data,
+           context = {'request': request}
+       )
+
+       if serializer.valid():
+           user = serializer.update(request.user, serializer.validated_data)
+
+           Token.objects.filter(user = user).delete()
+           new_token = Token.objects.create(user = user)
+
+           return Response({
+               'message':'更新成功',
+               'user': UserSerializer(user).data,
+               'newToken': new_token.key
+           }, status = status.HTTP_200_OK)
+       
+       return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)

@@ -105,4 +105,19 @@ class ResetPasswordSerializer(serializers.Serializer):
         return user
     
 class ResetUserNameAndPassword(serializers.Serializer):
-    userName = serializers.CharField
+    username = serializers.CharField(required = True)
+    new_password = serializers.CharField(write_only = True, requird = True)
+
+    def validate_username(self, value):
+        user = self.context['request'].user
+
+        if User.objects.filter(username = value).exclude( id = user.id).exists():
+            raise serializers.ValidationError('用戶名稱重複')
+        
+        return value
+    
+    def update(self, instance, validated_data):
+        instance.username = validated_data['username']
+        instance.set_password  = validated_data['new_password']
+        instance.save()
+        return instance
