@@ -91,7 +91,7 @@ class ResetPasswordSerializer(serializers.Serializer):
         try:
             user = User.objects.get(email = email)
         except User.DoesNotExist:
-            raise serializers.ValidationError('用戶不存在')
+            raise serializers.ValidationError('電子郵件不存在')
         
         return data
     
@@ -106,7 +106,7 @@ class ResetPasswordSerializer(serializers.Serializer):
     
 class ResetUserNameAndPassword(serializers.Serializer):
     username = serializers.CharField(required = True)
-    new_password = serializers.CharField(write_only = True, requird = True)
+    new_password = serializers.CharField(write_only = True, required = True)
 
     def validate_username(self, value):
         user = self.context['request'].user
