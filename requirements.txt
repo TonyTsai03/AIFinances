@@ -1,0 +1,6 @@
+DJANGO_SECRET_KEY=your-secret-key
+DJANGO_DEBUG=False
+DATABASE_URL=your-postgres-database-url
+FINLAB_API_KEY=your-finlab-api-key
+EMAIL_HOST_USER=your-email
+EMAIL_HOST_PASSWORD=your-email-password
