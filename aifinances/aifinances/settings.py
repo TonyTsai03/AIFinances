@@ -47,7 +47,8 @@ INSTALLED_APPS = [
     'users',
     'stocks',
     'prediction',
-    'corsheaders'
+    'corsheaders',
+    'aifinances'
 ]
 
 MIDDLEWARE = [
