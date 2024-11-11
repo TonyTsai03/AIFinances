@@ -9,6 +9,8 @@ from django.core.cache import cache
 from rest_framework.permissions import IsAuthenticated
 
 class RegisterAPI(generics.GenericAPIView):
+    permission_classes = []  # 明確指定不需要認證
+    authentication_classes = [] 
     serializer_class = RegisterSerializer
     def post(self, request, *args,  **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -22,6 +24,8 @@ class RegisterAPI(generics.GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginAPI(generics.GenericAPIView):
+    permission_classes = []  # 明確指定不需要認證
+    authentication_classes = [] 
     serializer_class = LoginSerializer
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
