@@ -24,7 +24,7 @@ def get_random_stocks():
     return result
 
 class FavoriteStock(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name = 'favorit_stock')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name = 'favorite_stock')
     stock_id = models.CharField(max_length = 10)
     stock_name = models.CharField(max_length = 50)
     created_at = models.DateTimeField(auto_now_add = True)
@@ -39,12 +39,13 @@ class FavoriteStock(models.Model):
 def search_stocks(query):
     try:
         cached_data = cache.get('company_data')
+        CACHE_TIMEOUT = 86400
 
         if cached_data is None:
             finlab.login('r0K9y4lF4EhgdSIjBVE5vY7ZKMhXqNr/N0yWFGz/keCB1a87U4N1xykyUlLu9B7S#vip_m')
             company_data = data.get('company_basic_info')
             stocks_info = company_data[['stock_id', '公司簡稱']].copy()
-            cache.set('company_data', stocks_info, 86400)
+            cache.set('company_data', stocks_info, CACHE_TIMEOUT)
         else:
             stocks_info = cached_data
         
@@ -53,6 +54,7 @@ def search_stocks(query):
         
         matched_stocks = stocks_info[mask].head(20)
         return matched_stocks.to_dict('records')
+    
     except Exception as e:
         print(e)
         return None

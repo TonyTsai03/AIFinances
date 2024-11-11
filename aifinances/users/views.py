@@ -77,16 +77,16 @@ class ResetUserNameAndPasswordAPI(generics.GenericAPIView):
 
    def post(self, request):
        serializer = self.get_serializer(
-           isinstance = request.user,
+           instance = request.user,
            data = request.data,
            context = {'request': request}
        )
 
-       if serializer.valid():
+       if serializer.is_valid(): 
            user = serializer.update(request.user, serializer.validated_data)
 
-           Token.objects.filter(user = user).delete()
-           new_token = Token.objects.create(user = user)
+           Token.objects.filter(user=user).delete()
+           new_token = Token.objects.create(user=user)
 
            return Response({
                'message':'更新成功',

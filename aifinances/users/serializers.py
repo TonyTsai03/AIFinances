@@ -118,6 +118,6 @@ class ResetUserNameAndPassword(serializers.Serializer):
     
     def update(self, instance, validated_data):
         instance.username = validated_data['username']
-        instance.set_password  = validated_data['new_password']
+        instance.set_password(validated_data['new_password']) 
         instance.save()
         return instance
