@@ -39,23 +39,25 @@ class LoginSerializer(serializers.Serializer):
         email = data.get('email')
         password = data.get('password')
 
-        if email and password:
-            user = authenticate(request=self.context.get('request'),
-                                username=email, password=password)
-            if not user:
-                try:
-                    user_obj = User.objects.get(email=email)
-                    if not user_obj.check_password(password):
-                        raise serializers.ValidationError("密碼不正確")
-                except User.DoesNotExist:
-                    raise serializers.ValidationError("此電子郵件未註冊")
-            if user and not user.is_active:
-                raise serializers.ValidationError("用戶帳號已被禁用")
-        else:
+        if not email or not password:
             raise serializers.ValidationError("必須提供電子郵件和密碼")
-
-        data['user'] = user
-        return data
+            
+        try:
+            # 首先通過郵箱查找用戶
+            user = User.objects.get(email=email)
+            
+            # 檢查密碼
+            if user.check_password(password):
+                if not user.is_active:
+                    raise serializers.ValidationError("用戶帳號已被禁用")
+                # 設置驗證通過的用戶
+                data['user'] = user
+                return data
+            else:
+                raise serializers.ValidationError("密碼不正確")
+                
+        except User.DoesNotExist:
+            raise serializers.ValidationError("此電子郵件未註冊")
 
 class ForgetPassword(serializers.Serializer):
     email = serializers.EmailField()
