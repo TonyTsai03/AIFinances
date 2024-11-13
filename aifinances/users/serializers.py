@@ -106,20 +106,41 @@ class ResetPasswordSerializer(serializers.Serializer):
 
         return user
     
-class ResetUserNameAndPassword(serializers.Serializer):
-    username = serializers.CharField(required = True)
-    new_password = serializers.CharField(write_only = True, required = True)
+class UpdateProfileSerializer(serializers.Serializer):
+    username = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
 
     def validate_username(self, value):
         user = self.context['request'].user
-
-        if User.objects.filter(username = value).exclude( id = user.id).exists():
+        if User.objects.filter(username=value).exclude(id=user.id).exists():
             raise serializers.ValidationError('用戶名稱重複')
-        
         return value
-    
+
+    def validate_email(self, value):
+        user = self.context['request'].user
+        if User.objects.filter(email=value).exclude(id=user.id).exists():
+            raise serializers.ValidationError('此電子郵件已被註冊')
+        return value
+
     def update(self, instance, validated_data):
-        instance.username = validated_data['username']
-        instance.set_password(validated_data['new_password']) 
+        if 'username' in validated_data:
+            instance.username = validated_data['username']
+        if 'email' in validated_data:
+            instance.email = validated_data['email']
+        instance.save()
+        return instance
+
+class UpdatePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError('原密碼不正確')
+        return value
+
+    def update(self, instance, validated_data):
+        instance.set_password(validated_data['new_password'])
         instance.save()
         return instance

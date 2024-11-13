@@ -1,7 +1,7 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from .serializers import UserSerializer, RegisterSerializer, LoginSerializer, ForgetPassword, OTPVerificationSerializer, ResetPasswordSerializer, ResetUserNameAndPassword
+from .serializers import UserSerializer, RegisterSerializer, LoginSerializer, ForgetPassword, OTPVerificationSerializer, ResetPasswordSerializer, UpdatePasswordSerializer, UpdateProfileSerializer
 import random
 from django.core.mail import send_mail
 from django.conf import settings
@@ -74,28 +74,47 @@ class ResetPasswordAPI(generics.GenericAPIView):
             return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ResetUserNameAndPasswordAPI(generics.GenericAPIView):
-   serializer_class = ResetUserNameAndPassword
-   
-   permission_classes = [IsAuthenticated]
+class UpdateProfileAPI(generics.GenericAPIView):
+    serializer_class = UpdateProfileSerializer
+    permission_classes = [IsAuthenticated]
 
-   def post(self, request):
-       serializer = self.get_serializer(
-           instance = request.user,
-           data = request.data,
-           context = {'request': request}
-       )
+    def put(self, request):
+        serializer = self.get_serializer(
+            instance=request.user,
+            data=request.data,
+            context={'request': request}
+        )
 
-       if serializer.is_valid(): 
-           user = serializer.update(request.user, serializer.validated_data)
+        if serializer.is_valid():
+            user = serializer.update(request.user, serializer.validated_data)
+            return Response({
+                'message': '個人資料更新成功',
+                'user': UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
 
-           Token.objects.filter(user=user).delete()
-           new_token = Token.objects.create(user=user)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-           return Response({
-               'message':'更新成功',
-               'user': UserSerializer(user).data,
-               'newToken': new_token.key
-           }, status = status.HTTP_200_OK)
-       
-       return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+class UpdatePasswordAPI(generics.GenericAPIView):
+    serializer_class = UpdatePasswordSerializer
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        serializer = self.get_serializer(
+            instance=request.user,
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            user = serializer.update(request.user, serializer.validated_data)
+            
+            # 更新密碼後重新生成 token
+            Token.objects.filter(user=user).delete()
+            new_token = Token.objects.create(user=user)
+
+            return Response({
+                'message': '密碼更新成功',
+                'newToken': new_token.key
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
