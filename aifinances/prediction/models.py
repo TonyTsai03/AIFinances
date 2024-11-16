@@ -1,5 +1,3 @@
-import finlab
-from finlab import data
 import pandas as pd
 import numpy as np
 import joblib
@@ -9,35 +7,45 @@ from django.conf import settings
 class StockPredictor:
     def __init__(self):
         self.days = ['Day1', 'Day2', 'Day3', 'Day4', 'Day5']
-        self.models_dir = os.path.join(settings.BASE_DIR, 'saved_models')
-        print(f"Models directory: {self.models_dir}")  
+        self.models_dir = os.path.join(settings.BASE_DIR, 'prediction', 'saved_models')
+        self.data_dir = os.path.join(settings.BASE_DIR, 'prediction', 'data_splits')
+        print(f"Models directory: {self.models_dir}")
+        print(f"Data directory: {self.data_dir}")
         self.models = {day: self._load_day_models(day) for day in self.days}
 
     def _load_day_models(self, day):
+        """載入指定天數的模型和相關組件"""
         try:
             day_path = os.path.join(self.models_dir, day)
             print(f"Loading models from: {day_path}")  
             
             models = {}
-
+            
+            # 載入XGBoost模型
             best_model_path = os.path.join(day_path, f'XGBoost_model.pkl')
             if os.path.exists(best_model_path):
                 print(f"Loading best model from {best_model_path}")
                 models['best'] = joblib.load(best_model_path)
             else:
-                print(f"Warning: Best model not found for {day}")
+                print(f"Warning: Best model not found at {best_model_path}")
                 return None
 
+            # 載入預處理器
             preprocessor_path = os.path.join(day_path, f'preprocessor_{day}.pkl')
             if os.path.exists(preprocessor_path):
                 print(f"Loading preprocessor from {preprocessor_path}")
                 models['preprocessor'] = joblib.load(preprocessor_path)
+            else:
+                print(f"Warning: Preprocessor not found at {preprocessor_path}")
 
+            # 載入特徵列表
             features_path = os.path.join(day_path, f'selected_features_{day}.txt')
             if os.path.exists(features_path):
                 print(f"Loading selected features from {features_path}")
-                with open(features_path, 'r') as f:
-                    models['selected_features'] = f.read().splitlines()
+                with open(features_path, 'r', encoding='utf-8') as f:
+                    models['selected_features'] = [line.strip() for line in f.readlines()]
+            else:
+                print(f"Warning: Selected features not found at {features_path}")
 
             return models
 
@@ -46,76 +54,95 @@ class StockPredictor:
             return None
 
     def get_features(self, company_code):
+        """從測試資料中獲取原始特徵"""
         try:
-            finlab.login('r0K9y4lF4EhgdSIjBVE5vY7ZKMhXqNr/N0yWFGz/keCB1a87U4N1xykyUlLu9B7S#vip_m')
-            
-            features = {
-                '淨值成長率': 'fundamental_features:淨值成長率',
-                '營收成長率': 'fundamental_features:營收成長率',
-                '資產總額成長率': 'fundamental_features:營收成長率',
-                '業外收支營收率': 'fundamental_features:業外收支營收率',
-                '應收帳款週轉率': 'fundamental_features:應收帳款週轉率',
-                '營業利益成長率': 'fundamental_features:營業利益成長率',
-                '稅率': 'fundamental_features:稅率',
-                '存貨週轉率': 'fundamental_features:存貨週轉率',
-                '總資產週轉次數': 'fundamental_features:總資產週轉次數',
-                '研究發展費用率': 'fundamental_features:研究發展費用率',
-                '推銷費用率': 'fundamental_features:推銷費用率',
-                '折舊': 'fundamental_features:折舊',
-                '稅前淨利成長率': 'fundamental_features:稅前淨利成長率',
-                '現金流量比率': 'fundamental_features:現金流量比率',
-                '利息支出率': 'fundamental_features:利息支出率',
-                '營業毛利成長率': 'fundamental_features:營業毛利成長率',
-                '每股現金流量': 'fundamental_features:每股現金流量',
-                '貝里比率': 'fundamental_features:貝里比率',
-                '營運現金流': 'fundamental_features:營運現金流',
-                'ROA綜合損益': 'fundamental_features:ROA綜合損益'
-            }
-            
-            latest_features = {}
-            for feature_name, feature_key in features.items():
-                feature_data = data.get(feature_key)
-                if company_code in feature_data:
-                    latest_value = feature_data[company_code].dropna().iloc[-1]
-                    latest_features[feature_name] = latest_value
+            features = {}
+            for day in self.days:
+                x_test_path = os.path.join(self.data_dir, day, 'X_test_raw.csv')
+                if not os.path.exists(x_test_path):
+                    print(f"Warning: Test data not found at {x_test_path}")
+                    continue
+                
+                # 讀取CSV檔案
+                x_test = pd.read_csv(x_test_path, encoding='utf-8')
+                
+                # 檢查股票代碼是否在資料中
+                if 'Company Code' in x_test.columns and int(company_code) in x_test['Company Code'].values:
+                    # 獲取該股票的資料行
+                    stock_data = x_test[x_test['Company Code'] == int(company_code)].copy()
+                    features[day] = stock_data
                 else:
-                    latest_features[feature_name] = np.nan
+                    print(f"Warning: Company code {company_code} not found in {day} test data")
+                    features[day] = None
                     
-            return latest_features
+            return features
             
         except Exception as e:
             print(f"Error getting features for {company_code}: {str(e)}")
             return None
 
     def predict(self, company_code):
-
+        """對指定股票進行預測"""
         try:
-            raw_features = self.get_features(company_code)
-            if raw_features is None:
+            # 獲取原始特徵
+            day_features = self.get_features(company_code)
+            if day_features is None:
+                print("Failed to get features")
                 return None
 
             predictions = {}
 
             for day in self.days:
-                day_models = self.models[day]
-                if day_models is None or 'best' not in day_models:
-                    print(f"Skipping {day} - best model not loaded")
+                if day not in day_features or day_features[day] is None:
+                    print(f"No features available for {day}")
                     continue
 
-                feature_df = pd.DataFrame([raw_features])
+                day_models = self.models[day]
+                if day_models is None or 'best' not in day_models:
+                    print(f"Skipping {day} - models not properly loaded")
+                    continue
 
-                if 'preprocessor' in day_models:
-                    feature_df = day_models['preprocessor'].transform(feature_df)
-
-                if 'selected_features' in day_models:
-                    feature_df = feature_df[day_models['selected_features']]
+                # 獲取該天的原始特徵
+                raw_features = day_features[day]
+                
+                # 只移除不需要的欄位，保留Company Code
+                columns_to_drop = ['Future_Price_Change', 'Year', 'Month', 'Day_Date']
+                features_for_model = raw_features.drop(columns=columns_to_drop)
 
                 try:
-                    pred = day_models['best'].predict(feature_df)[0]
+                    # 1. 使用預處理器
+                    if 'preprocessor' in day_models:
+                        print(f"Applying preprocessor for {day}")
+                        processed_features = day_models['preprocessor'].transform(features_for_model)
+                        # 將numpy array轉換回DataFrame，保持特徵名稱
+                        processed_features = pd.DataFrame(
+                            processed_features,
+                            columns=features_for_model.columns
+                        )
+                    else:
+                        print(f"No preprocessor found for {day}")
+                        processed_features = features_for_model
+
+                    # 2. 應用特徵選擇
+                    if 'selected_features' in day_models:
+                        print(f"Selecting features for {day}")
+                        selected_features = processed_features[day_models['selected_features']]
+                    else:
+                        print(f"No selected features found for {day}")
+                        selected_features = processed_features
+
+                    # 3. 進行預測
+                    print(f"Making prediction for {day}")
+                    pred = day_models['best'].predict(selected_features)[0]
                     predictions[day] = float(pred)
+                    print(f"Prediction for {day}: {pred}")
+
                 except Exception as e:
-                    print(f"Error predicting with {day}: {str(e)}")
+                    print(f"Error in prediction process for {day}: {str(e)}")
+                    print(f"Error details: {str(e.__class__.__name__)}")
+                    print(f"Error message: {str(e)}")
                     predictions[day] = None
+                    continue
 
             return predictions
 
